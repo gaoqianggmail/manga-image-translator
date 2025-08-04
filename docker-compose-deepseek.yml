@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  manga_image_translator:
+    image: zyddnys/manga-image-translator:main
+    container_name: manga_translator_deepseek_cpu
+    entrypoint: python
+    command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003
+    volumes:
+      - ./result:/app/result      
+    ports:
+      - "8000:5003"  # Map container port 5003 to host port 8000 for easy access
+    ipc: host
+    restart: unless-stopped
+    environment:  
+      # DeepSeek Configuration (REQUIRED)
+      DEEPSEEK_API_KEY: 'sk-25868d18121844c4a5a5501ad8dc0e77'
+      DEEPSEEK_API_BASE: 'https://api.deepseek.com'
+      DEEPSEEK_MODEL: 'deepseek-chat'
+      
+      # Optional: Other translation services (leave empty if not using)
+      OPENAI_API_KEY: ''
+      OPENAI_API_BASE: ''
+      OPENAI_MODEL: ''
+      DEEPL_AUTH_KEY: ''
+      BAIDU_APP_ID: ''
+      BAIDU_SECRET_KEY: ''
+      YOUDAO_APP_KEY: ''
+      YOUDAO_SECRET_KEY: ''
+      GROQ_API_KEY: ''
+      GEMINI_API_KEY: ''
+      CAIYUN_TOKEN: ''
+      
+      # Performance settings for CPU
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      OMP_NUM_THREADS: '4'
+      MKL_NUM_THREADS: '4'
