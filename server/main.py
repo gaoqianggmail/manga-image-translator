@@ -35,8 +35,9 @@ app.add_middleware(
 )
 
 # 添加result文件夹静态文件服务
-if os.path.exists("../result"):
-    app.mount("/result", StaticFiles(directory="../result"), name="result")
+result_path = "result" if os.path.exists("result") else "../result"
+if os.path.exists(result_path):
+    app.mount("/result", StaticFiles(directory=result_path), name="result")
 
 @app.post("/register", response_description="no response", tags=["internal-api"])
 async def register_instance(instance: ExecutorInstance, req: Request, req_nonce: str = Header(alias="X-Nonce")):
@@ -162,7 +163,7 @@ async def queue_size() -> int:
 @app.api_route("/result/{folder_name}/final.png", methods=["GET", "HEAD"], tags=["api", "file"])
 async def get_result_by_folder(folder_name: str):
     """根据文件夹名称获取翻译结果图片"""
-    result_dir = "../result"
+    result_dir = "result" if os.path.exists("result") else "../result"
     if not os.path.exists(result_dir):
         raise HTTPException(404, detail="Result directory not found")
 

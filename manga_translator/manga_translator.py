@@ -401,7 +401,8 @@ class MangaTranslator:
 
         # preload and download models (not strictly necessary, remove to lazy load)
         if ( self.models_ttl == 0 ):
-            logger.info('Loading models')
+            models_start = time.time()
+            logger.info('📦 Loading models...')
             if config.upscale.upscale_ratio:
                 await prepare_upscaling(config.upscale.upscaler)
             await prepare_detection(config.detector.detector)
@@ -410,6 +411,8 @@ class MangaTranslator:
             await prepare_translation(config.translator.translator_gen)
             if config.colorizer.colorizer != Colorizer.none:
                 await prepare_colorization(config.colorizer.colorizer)
+            models_time = time.time() - models_start
+            logger.info(f"⏱️  Model loading completed in {models_time:.2f}s")
 
         # translate
         ctx = await self._translate(config, ctx)
@@ -430,30 +433,41 @@ class MangaTranslator:
         return ctx
 
     async def _translate(self, config: Config, ctx: Context) -> Context:
+        # Start timing for the entire translation process
+        total_start_time = time.time()
+        logger.info("🚀 Starting translation pipeline...")
+        
         # Start the background cleanup job once if not already started.
         if self._detector_cleanup_task is None:
             self._detector_cleanup_task = asyncio.create_task(self._detector_cleanup_job())
+            
         # -- Colorization
         if config.colorizer.colorizer != Colorizer.none:
+            colorize_start = time.time()
             await self._report_progress('colorizing')
             try:
                 ctx.img_colorized = await self._run_colorizer(config, ctx)
+                colorize_time = time.time() - colorize_start
+                logger.info(f"⏱️  Colorization completed in {colorize_time:.2f}s")
             except Exception as e:  
                 logger.error(f"Error during colorizing:\n{traceback.format_exc()}")  
                 if not self.ignore_errors:  
                     raise  
                 ctx.img_colorized = ctx.input  # Fallback to input image if colorization fails
-
         else:
             ctx.img_colorized = ctx.input
+            logger.info("⏭️  Colorization skipped")
 
         # -- Upscaling
         # The default text detector doesn't work very well on smaller images, might want to
         # consider adding automatic upscaling on certain kinds of small images.
         if config.upscale.upscale_ratio:
+            upscale_start = time.time()
             await self._report_progress('upscaling')
             try:
                 ctx.upscaled = await self._run_upscaling(config, ctx)
+                upscale_time = time.time() - upscale_start
+                logger.info(f"⏱️  Upscaling completed in {upscale_time:.2f}s")
             except Exception as e:  
                 logger.error(f"Error during upscaling:\n{traceback.format_exc()}")  
                 if not self.ignore_errors:  
@@ -461,13 +475,21 @@ class MangaTranslator:
                 ctx.upscaled = ctx.img_colorized # Fallback to colorized (or input) image if upscaling fails
         else:
             ctx.upscaled = ctx.img_colorized
+            logger.info("⏭️  Upscaling skipped")
 
+        # Load image timing
+        load_start = time.time()
         ctx.img_rgb, ctx.img_alpha = load_image(ctx.upscaled)
+        load_time = time.time() - load_start
+        logger.info(f"⏱️  Image loading completed in {load_time:.3f}s")
 
         # -- Detection
+        detection_start = time.time()
         await self._report_progress('detection')
         try:
             ctx.textlines, ctx.mask_raw, ctx.mask = await self._run_detection(config, ctx)
+            detection_time = time.time() - detection_start
+            logger.info(f"⏱️  Text detection completed in {detection_time:.2f}s (found {len(ctx.textlines)} text regions)")
         except Exception as e:  
             logger.error(f"Error during detection:\n{traceback.format_exc()}")  
             if not self.ignore_errors:  
@@ -492,9 +514,12 @@ class MangaTranslator:
             cv2.imwrite(self._result_path('bboxes_unfiltered.png'), cv2.cvtColor(img_bbox_raw, cv2.COLOR_RGB2BGR))
 
         # -- OCR
+        ocr_start = time.time()
         await self._report_progress('ocr')
         try:
             ctx.textlines = await self._run_ocr(config, ctx)
+            ocr_time = time.time() - ocr_start
+            logger.info(f"⏱️  OCR completed in {ocr_time:.2f}s (processed {len(ctx.textlines)} text regions)")
         except Exception as e:  
             logger.error(f"Error during ocr:\n{traceback.format_exc()}")  
             if not self.ignore_errors:  
@@ -508,9 +533,12 @@ class MangaTranslator:
             return await self._revert_upscale(config, ctx)
 
         # -- Textline merge
+        merge_start = time.time()
         await self._report_progress('textline_merge')
         try:
             ctx.text_regions = await self._run_textline_merge(config, ctx)
+            merge_time = time.time() - merge_start
+            logger.info(f"⏱️  Textline merge completed in {merge_time:.2f}s (created {len(ctx.text_regions)} text regions)")
         except Exception as e:  
             logger.error(f"Error during textline_merge:\n{traceback.format_exc()}")  
             if not self.ignore_errors:  
@@ -540,9 +568,12 @@ class MangaTranslator:
             logger.info("No pre-translation replacements made.")
             
         # -- Translation
+        translation_start = time.time()
         await self._report_progress('translating')
         try:
             ctx.text_regions = await self._run_text_translation(config, ctx)
+            translation_time = time.time() - translation_start
+            logger.info(f"⏱️  Translation completed in {translation_time:.2f}s (translated {len(ctx.text_regions)} text regions)")
         except Exception as e:  
             logger.error(f"Error during translating:\n{traceback.format_exc()}")  
             if not self.ignore_errors:  
@@ -579,9 +610,12 @@ class MangaTranslator:
             cv2.imwrite(self._result_path('mask_final.png'), ctx.mask)
 
         # -- Inpainting
+        inpainting_start = time.time()
         await self._report_progress('inpainting')
         try:
             ctx.img_inpainted = await self._run_inpainting(config, ctx)
+            inpainting_time = time.time() - inpainting_start
+            logger.info(f"⏱️  Inpainting completed in {inpainting_time:.2f}s")
         except Exception as e:  
             logger.error(f"Error during inpainting:\n{traceback.format_exc()}")  
             if not self.ignore_errors:  
@@ -600,6 +634,7 @@ class MangaTranslator:
                 logger.error(f"Error saving inpainted.png debug image: {e}")
                 logger.debug(f"Exception details: {traceback.format_exc()}")
         # -- Rendering
+        rendering_start = time.time()
         await self._report_progress('rendering')
 
         # 在rendering状态后立即发送文件夹信息，用于前端精确检查final.png
@@ -610,14 +645,24 @@ class MangaTranslator:
 
         try:
             ctx.img_rendered = await self._run_text_rendering(config, ctx)
+            rendering_time = time.time() - rendering_start
+            logger.info(f"⏱️  Text rendering completed in {rendering_time:.2f}s")
         except Exception as e:
             logger.error(f"Error during rendering:\n{traceback.format_exc()}")
             if not self.ignore_errors:
                 raise
             ctx.img_rendered = ctx.img_inpainted # Fallback to inpainted (or original RGB) image if rendering fails
 
+        # Final image assembly
+        assembly_start = time.time()
         await self._report_progress('finished', True)
         ctx.result = dump_image(ctx.input, ctx.img_rendered, ctx.img_alpha)
+        assembly_time = time.time() - assembly_start
+        logger.info(f"⏱️  Final image assembly completed in {assembly_time:.3f}s")
+
+        # Calculate and log total time
+        total_time = time.time() - total_start_time
+        logger.info(f"🏁 Total translation pipeline completed in {total_time:.2f}s")
 
         return await self._revert_upscale(config, ctx)
     

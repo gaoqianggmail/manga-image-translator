@@ -66,7 +66,7 @@ class Model48pxOCR(OfflineOCR):
     
     async def _infer(self, image: np.ndarray, textlines: List[Quadrilateral], config: OcrConfig, verbose: bool = False, ignore_bubble: int = 0) -> List[TextBlock]:
         text_height = 48
-        max_chunk_size = 16
+        max_chunk_size = 32  # Increased from 16 to 32 for faster batch processing
         threshold = 0.2 if config.prob is None else config.prob
 
         quadrilaterals = list(self._generate_text_direction(textlines))
@@ -89,15 +89,9 @@ class Model48pxOCR(OfflineOCR):
                 W = region_imgs[idx].shape[1]
                 tmp = region_imgs[idx]
                 region[i, :, : W, :]=tmp
-                if verbose:
-                    # 保存OCR调试图片，使用优化的保存方式
-                    ocr_result_dir = os.environ.get('MANGA_OCR_RESULT_DIR', 'result/ocrs/')
-                    os.makedirs(ocr_result_dir, exist_ok=True)
-                    
-                    # 转换图片数据
-                    img_data = cv2.cvtColor(region[i, :, :, :], cv2.COLOR_RGB2BGR)
-                    if quadrilaterals[idx][1] == 'v':
-                        img_data = cv2.rotate(img_data, cv2.ROTATE_90_CLOCKWISE)
+                # Skip verbose OCR debug image saving for speed optimization
+                if False:  # Disabled for performance
+                    pass
                     
                     # 限制OCR调试图片最大尺寸为200像素（OCR图片通常很小）
                     max_ocr_size = 200

@@ -291,7 +291,7 @@ class DetectorConfig(BaseModel):
 class InpainterConfig(BaseModel):
     inpainter: Inpainter = Inpainter.lama_large
     """Inpainting model to use"""
-    inpainting_size: int = 2048
+    inpainting_size: int = 1536
     """Size of image used for inpainting (too large will result in OOM)"""
     inpainting_precision: InpaintPrecision = InpaintPrecision.bf16
     """Inpainting precision for lama, use bf16 while you can."""

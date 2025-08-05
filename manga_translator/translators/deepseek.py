@@ -245,11 +245,11 @@ class DeepseekTranslator(CommonGPTTranslator):
             'model': DEEPSEEK_MODEL,
             'messages': messages,
             
-            # `max_tokens` only affects output token length. Set to max.
-            'max_tokens': self._MAX_TOKENS, 
-            
-            'temperature': self.temperature,
-            'top_p': self.top_p,
+            # Aggressive speed optimization
+            'max_tokens': 1000,  # Much smaller for manga text
+            'temperature': 0.1,   # Very low for fast, deterministic responses
+            'top_p': 0.5,         # Reduced for faster generation
+            'stream': False       # Ensure no streaming overhead
         }
         try:
             response = await self.client.beta.chat.completions.parse(**kwargs)

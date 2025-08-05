@@ -1,0 +1,25 @@
+{
+  "detector": {
+    "detector": "default",
+    "detection_size": 1536,
+    "text_threshold": 0.5,
+    "box_threshold": 0.7
+  },
+  "ocr": {
+    "ocr": "48px",
+    "prob": 0.8
+  },
+  "inpainter": {
+    "inpainter": "lama_large",
+    "inpainting_size": 1280,
+    "inpainting_precision": "bf16"
+  },
+  "translator": {
+    "translator": "deepseek",
+    "target_lang": "CHS"
+  },
+  "render": {
+    "renderer": "default",
+    "font_size_offset": 0
+  }
+}
