@@ -16,26 +16,33 @@ export default function TranslationResults({ results }: TranslationResultsProps)
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [showOriginal, setShowOriginal] = useState<{ [key: number]: boolean }>({});
 
+  // No cleanup needed since we're using server URLs
+
   if (results.length === 0) return null;
 
   const downloadResult = async (filename: string, result: TranslationResult) => {
     try {
-      // Create a canvas to render the translated image
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // For now, we'll just download the JSON result
-      // In a real implementation, you'd reconstruct the image with translations
-      const dataStr = JSON.stringify(result, null, 2);
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      
-      const exportFileDefaultName = `${filename.split('.')[0]}_translated.json`;
-      
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
-      linkElement.click();
+      if (result.translatedImageUrl) {
+        // Download the translated image
+        const exportFileDefaultName = `${filename.split('.')[0]}_translated.png`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', result.translatedImageUrl);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.setAttribute('target', '_blank');
+        linkElement.click();
+      } else {
+        // Fallback: download JSON result
+        const dataStr = JSON.stringify(result, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `${filename.split('.')[0]}_translated.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+      }
     } catch (error) {
       console.error('Download failed:', error);
     }
@@ -74,9 +81,16 @@ export default function TranslationResults({ results }: TranslationResultsProps)
             {/* Image Preview */}
             <div className="relative aspect-square bg-gray-100">
               <img
-                src={URL.createObjectURL(originalFile)}
+                src={result.translatedImageUrl || URL.createObjectURL(originalFile)}
                 alt={filename}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to original image if translated image fails to load
+                  if (result.translatedImageUrl) {
+                    console.warn(`Failed to load translated image: ${result.translatedImageUrl}`);
+                    (e.target as HTMLImageElement).src = URL.createObjectURL(originalFile);
+                  }
+                }}
               />
               
               {/* Overlay Controls */}
@@ -91,6 +105,7 @@ export default function TranslationResults({ results }: TranslationResultsProps)
                   <button
                     onClick={() => toggleOriginalView(index)}
                     className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-50 transition-colors"
+                    title={showOriginal[index] ? "Show translated" : "Show original"}
                   >
                     {showOriginal[index] ? (
                       <EyeOff className="h-5 w-5 text-gray-700" />
@@ -101,8 +116,19 @@ export default function TranslationResults({ results }: TranslationResultsProps)
                 </div>
               </div>
 
-              {/* Translation Overlay */}
-              {!showOriginal[index] && result.translations && (
+              {/* Show original image toggle */}
+              {showOriginal[index] && (
+                <div className="absolute inset-0">
+                  <img
+                    src={URL.createObjectURL(originalFile)}
+                    alt={`${filename} (original)`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Translation Overlay - only show on original image */}
+              {showOriginal[index] && result.translations && (
                 <div className="absolute inset-0">
                   {result.translations.map((translation, tIndex) => (
                     <div
@@ -126,7 +152,19 @@ export default function TranslationResults({ results }: TranslationResultsProps)
 
             {/* File Info */}
             <div className="p-4">
-              <h3 className="font-medium text-gray-900 truncate mb-2">{filename}</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-medium text-gray-900 truncate">{filename}</h3>
+                {result.translatedImageUrl && !showOriginal[index] && (
+                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                    Translated
+                  </span>
+                )}
+                {showOriginal[index] && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    Original
+                  </span>
+                )}
+              </div>
               
               <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
                 <span>{result.translations?.length || 0} text regions</span>
@@ -197,13 +235,39 @@ export default function TranslationResults({ results }: TranslationResultsProps)
             <div className="p-4">
               <div className="relative">
                 <img
-                  src={URL.createObjectURL(results[selectedImage].originalFile)}
+                  src={results[selectedImage].result.translatedImageUrl || URL.createObjectURL(results[selectedImage].originalFile)}
                   alt={results[selectedImage].filename}
                   className="max-w-full h-auto"
                 />
                 
-                {/* Translation overlays for modal */}
-                {results[selectedImage].result.translations?.map((translation, tIndex) => (
+                {/* Toggle button for modal */}
+                <div className="absolute top-4 right-4">
+                  <button
+                    onClick={() => toggleOriginalView(selectedImage)}
+                    className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-50 transition-colors"
+                    title={showOriginal[selectedImage] ? "Show translated" : "Show original"}
+                  >
+                    {showOriginal[selectedImage] ? (
+                      <EyeOff className="h-5 w-5 text-gray-700" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-700" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Show original image in modal when toggled */}
+                {showOriginal[selectedImage] && (
+                  <div className="absolute inset-0">
+                    <img
+                      src={URL.createObjectURL(results[selectedImage].originalFile)}
+                      alt={`${results[selectedImage].filename} (original)`}
+                      className="max-w-full h-auto"
+                    />
+                  </div>
+                )}
+                
+                {/* Translation overlays for modal - only show on original */}
+                {showOriginal[selectedImage] && results[selectedImage].result.translations?.map((translation, tIndex) => (
                   <div
                     key={tIndex}
                     className="absolute border-2 border-red-500 bg-red-500 bg-opacity-20"

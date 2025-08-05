@@ -6,6 +6,8 @@ A modern Next.js frontend for the manga image translator API, optimized for hand
 
 - **Batch Upload**: Upload up to 10 images simultaneously
 - **Real-time Progress**: Live progress tracking for each translation
+- **Translated Image Display**: Shows actual translated images, not just overlays
+- **Original/Translated Toggle**: Switch between original and translated views
 - **Queue Management**: Smart request queuing to prevent server overload
 - **Responsive Design**: Works on desktop and mobile devices
 - **Error Handling**: Robust error handling with retry mechanisms
